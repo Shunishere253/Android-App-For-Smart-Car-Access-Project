@@ -36,26 +36,60 @@ Future<void> _bleScanAndConnect({
       }
     } catch (_) {}
 
-    scanSub = FlutterBluePlus.scanResults.listen((results) async {
-      if (completer.isCompleted) return;
+    final connectedDevices = FlutterBluePlus.connectedDevices;
+    for (final device in connectedDevices) {
+      final name = device.platformName.trim();
+      final upperName = name.toUpperCase();
 
-      for (final r in results) {
-        final name = r.device.platformName.trim();
-        final upperName = name.toUpperCase();
-
-        if (!_bleIsTargetCarDeviceName(upperName)) {
-          continue;
-        }
-
-        BleController._emitRssi(r.rssi);
-        await completeOnce(r.device);
-        return;
+      if (_bleIsTargetCarDeviceName(upperName)) {
+        debugPrint("Found car in already connected devices: ${device.remoteId}");
+        await completeOnce(device);
+        break;
       }
-    });
+    }
 
-    await FlutterBluePlus.startScan(
-      timeout: const Duration(milliseconds: 2500),
-    );
+    if (!completer.isCompleted) {
+      try {
+        // Fallback cho systemDevices (khi OS đã kết nối ngầm nhưng app chưa biết)
+        final systemDevices = await FlutterBluePlus.systemDevices(const []);
+        for (final device in systemDevices) {
+          final name = device.platformName.trim();
+          final upperName = name.toUpperCase();
+
+          if (_bleIsTargetCarDeviceName(upperName)) {
+            debugPrint("Found car in system devices: ${device.remoteId}");
+            await completeOnce(device);
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint("systemDevices check failed: $e");
+      }
+    }
+
+    // Only start scan if we didn't find it in connected devices
+    if (!completer.isCompleted) {
+      scanSub = FlutterBluePlus.scanResults.listen((results) async {
+        if (completer.isCompleted) return;
+
+        for (final r in results) {
+          final name = r.device.platformName.trim();
+          final upperName = name.toUpperCase();
+
+          if (!_bleIsTargetCarDeviceName(upperName)) {
+            continue;
+          }
+
+          BleController._emitRssi(r.rssi);
+          await completeOnce(r.device);
+          return;
+        }
+      });
+
+      await FlutterBluePlus.startScan(
+        timeout: const Duration(milliseconds: 2500),
+      );
+    }
 
     final foundDevice = await completer.future.timeout(
       const Duration(milliseconds: 2800),
@@ -68,7 +102,7 @@ Future<void> _bleScanAndConnect({
       }
     } catch (_) {}
 
-    await scanSub.cancel();
+    await scanSub?.cancel();
 
     if (foundDevice == null) {
       onStatus(AppLocalizations.t("carNotFound"));
