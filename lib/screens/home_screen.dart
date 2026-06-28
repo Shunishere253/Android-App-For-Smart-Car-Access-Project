@@ -9,6 +9,8 @@ import '../models/auth_history_entry.dart';
 import '../services/background_service.dart';
 import '../services/bluetooth_service.dart';
 import '../services/crypto_service.dart';
+import '../services/notification_service.dart';
+import '../services/storage_service.dart';
 import '../theme_manager.dart';
 import '../widgets/home/access_flow_visual.dart';
 import '../widgets/home/aes_info_card.dart';
@@ -46,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen>
         _HomeNavigation,
         _HomeBuild {
   @override
-  String statusText = "Đang kiểm tra hệ thống...";
+  String statusText = "";
 
   @override
   Color statusColor = Colors.grey;
@@ -85,6 +87,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool backgroundStarted = false;
 
   @override
+  DateTime? rssiAutoDisconnectCooldownUntil;
+
+  @override
   int? bleRssi;
 
   @override
@@ -100,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen>
   String cipherHex = "-";
 
   @override
-  String aesResult = "Chưa xác thực";
+  String aesResult = "";
 
   @override
   Color aesResultColor = Colors.grey;

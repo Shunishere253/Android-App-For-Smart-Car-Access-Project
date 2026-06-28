@@ -34,10 +34,7 @@ Future<AesAuthResult> _bleRunAesAuthentication() async {
       await _bleStartNotifyListener();
     }
 
-    final authRssi = await _bleWaitForMinimumRssi(
-      BleController.authMinimumRssi,
-    );
-    int resultRssi = authRssi;
+    int resultRssi = BleController.currentRssi ?? BleController.authMinimumRssi;
     bool userInsideCarNotified = false;
 
     final List<int> appStartCommand = CryptoService.fixedChallenge;

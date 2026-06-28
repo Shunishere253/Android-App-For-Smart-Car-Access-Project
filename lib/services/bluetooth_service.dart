@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../localization/app_localizations.dart';
 import 'crypto_service.dart';
 
 part 'bluetooth/bluetooth_permissions.dart';
@@ -39,24 +40,6 @@ class AesAuthResult {
   bool get isPass => mcuResult.toUpperCase().contains("PASS");
 }
 
-class AuthRssiNotReadyException implements Exception {
-  final int? currentRssi;
-  final int minimumRssi;
-  final int stableSampleCount;
-
-  const AuthRssiNotReadyException({
-    required this.currentRssi,
-    required this.minimumRssi,
-    required this.stableSampleCount,
-  });
-
-  @override
-  String toString() {
-    return "RSSI BLE chưa đủ mạnh và ổn định để xác thực "
-        "(hiện tại ${currentRssi == null ? '--' : '$currentRssi'} dBm, "
-        "yêu cầu >= $minimumRssi dBm trong $stableSampleCount lần đo liên tiếp)";
-  }
-}
 
 class BleController {
   static BluetoothDevice? connectedDevice;
@@ -113,6 +96,9 @@ class BleController {
       _userInsideCarNotificationController.stream;
 
   static int? get currentRssi => _currentRssi;
+
+  static bool get hasSentUserInsideCar => _userInsideCarNotificationSent;
+
 
   static int? get latestRawRssi => _latestRawRssi;
 
@@ -184,6 +170,16 @@ class BleController {
 
   static Future<String> checkAndRequestPermissions() {
     return _bleCheckAndRequestPermissions();
+  }
+
+  /// Thử bật Bluetooth ngay (hiện system dialog trên Android).
+  static Future<bool> tryEnableBluetoothDirectly() {
+    return _bleTryEnableBluetoothDirectly();
+  }
+
+  /// Kiểm tra GPS có bật không sau khi user hành động.
+  static Future<bool> tryEnableLocationDirectly() {
+    return _bleTryEnableLocationDirectly();
   }
 
   static Future<void> scanAndConnect({

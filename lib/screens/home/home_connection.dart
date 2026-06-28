@@ -150,15 +150,15 @@ mixin _HomeConnection on State<HomeScreen>, _HomeStateAccess {
     }
 
     if (s.contains("không thể") || s.contains("fail") || s.contains("lỗi")) {
-      return "Không thể kết nối với xe";
+      return AppLocalizations.t("cannotConnectToCar");
     }
 
     if (s.contains("đã tìm thấy")) {
-      return "Đã tìm thấy xe, đang thiết lập kết nối...";
+      return AppLocalizations.t("carFoundConnecting");
     }
 
     if (s.contains("bảo mật")) {
-      return "Đang chuẩn bị kết nối bảo mật...";
+      return AppLocalizations.t("preparingSecureConnection");
     }
 
     if (s.contains("notify") ||
@@ -166,15 +166,15 @@ mixin _HomeConnection on State<HomeScreen>, _HomeStateAccess {
         s.contains("uart") ||
         s.contains("ffe1") ||
         s.contains("giao tiếp")) {
-      return "Đang mở kênh giao tiếp với xe...";
+      return AppLocalizations.t("openingCommunicationChannel");
     }
 
     if (s.contains("sẵn sàng") || s.contains("ready")) {
-      return "Kết nối với xe đã sẵn sàng";
+      return AppLocalizations.t("carConnectionReady");
     }
 
     if (s.contains("đang bật")) {
-      return "Đang chuẩn bị kết nối...";
+      return AppLocalizations.t("preparingConnection");
     }
 
     if (s.contains("tìm") ||
@@ -182,11 +182,11 @@ mixin _HomeConnection on State<HomeScreen>, _HomeStateAccess {
         s.contains("quét") ||
         s.contains("search") ||
         s.contains("đang kết nối")) {
-      return "Đang tìm xe...";
+      return AppLocalizations.t("findingCar");
     }
 
     if (s.contains("connect") || s.contains("kết nối")) {
-      return "Đang thiết lập kết nối với xe...";
+      return AppLocalizations.t("establishingConnection");
     }
 
     return rawStatus;
@@ -212,6 +212,15 @@ mixin _HomeConnection on State<HomeScreen>, _HomeStateAccess {
       if (isConnected) {
         timer.cancel();
         autoReconnectTimer = null;
+        rssiAutoDisconnectCooldownUntil = null; // Xóa cooldown khi đã kết nối lại
+        return;
+      }
+
+      // Trong thời gian cooldown sau auto-disconnect do RSSI: bỏ qua
+      final cooldown = rssiAutoDisconnectCooldownUntil;
+      if (cooldown != null && DateTime.now().isBefore(cooldown)) {
+        final remaining = cooldown.difference(DateTime.now()).inSeconds;
+        debugPrint("AutoReconnect skipped: RSSI cooldown ${remaining}s left");
         return;
       }
 

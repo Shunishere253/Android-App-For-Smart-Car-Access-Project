@@ -40,6 +40,11 @@ mixin _HomeStateAccess on State<HomeScreen> {
   bool get backgroundStarted;
   set backgroundStarted(bool value);
 
+  /// Thời điểm hết cooldown sau khi tự ngắt kết nối do RSSI yếu.
+  /// Trong khoảng này autoReconnect sẽ bị bỏ qua.
+  DateTime? get rssiAutoDisconnectCooldownUntil;
+  set rssiAutoDisconnectCooldownUntil(DateTime? value);
+
   int? get bleRssi;
   set bleRssi(int? value);
 

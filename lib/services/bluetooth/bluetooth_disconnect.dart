@@ -11,12 +11,6 @@ Future<void> _bleDisconnect({bool silent = false}) async {
   BleController._notifySubscription = null;
 
   try {
-    if (BleController._notifyChar != null) {
-      await BleController._notifyChar!.setNotifyValue(false);
-    }
-  } catch (_) {}
-
-  try {
     await BleController.connectedDevice?.disconnect();
   } catch (_) {}
 

@@ -71,21 +71,21 @@ Future<void> _bleScanAndConnect({
     await scanSub.cancel();
 
     if (foundDevice == null) {
-      onStatus("Không tìm thấy xe");
+      onStatus(AppLocalizations.t("carNotFound"));
       onResult(null);
       return;
     }
 
-    onStatus("Đã tìm thấy xe, đang thiết lập kết nối...");
+    onStatus(AppLocalizations.t("carFoundConnecting"));
 
     try {
       await _bleConnectPrepareAndSubscribe(foundDevice, onStatus);
-      onStatus("Kết nối với xe đã sẵn sàng");
+      onStatus(AppLocalizations.t("carConnectionReady"));
       onResult(foundDevice);
     } catch (e) {
       debugPrint("Connect/prepare error: $e");
       await _bleDisconnect(silent: true);
-      onStatus("Không thể kết nối với xe");
+      onStatus(AppLocalizations.t("cannotConnectToCar"));
       onResult(null);
     }
   } catch (e) {
@@ -263,48 +263,6 @@ Future<int?> _bleRefreshConnectedRssi({bool checkUserInsideCar = true}) async {
   return BleController.currentRssi;
 }
 
-Future<int> _bleWaitForMinimumRssi(
-  int minimumRssi, {
-  Duration timeout = const Duration(seconds: 6),
-}) async {
-  BleController._resetRssiFilter(clearCurrent: false);
-
-  final deadline = DateTime.now().add(timeout);
-  int? bestRssi = BleController.currentRssi;
-  int stableSampleCount = 0;
-
-  while (DateTime.now().isBefore(deadline)) {
-    try {
-      final rssi = await _bleRefreshConnectedRssi();
-
-      if (rssi != null && (bestRssi == null || rssi > bestRssi)) {
-        bestRssi = rssi;
-      }
-
-      if (rssi != null && rssi >= minimumRssi) {
-        stableSampleCount++;
-      } else {
-        stableSampleCount = 0;
-      }
-
-      if (stableSampleCount >= BleController.rssiStableSampleCount &&
-          rssi != null) {
-        return rssi;
-      }
-    } catch (e) {
-      stableSampleCount = 0;
-      debugPrint("RSSI refresh warning: $e");
-    }
-
-    await Future.delayed(const Duration(milliseconds: 350));
-  }
-
-  throw AuthRssiNotReadyException(
-    currentRssi: bestRssi,
-    minimumRssi: minimumRssi,
-    stableSampleCount: BleController.rssiStableSampleCount,
-  );
-}
 
 Future<void> _bleHandleUnexpectedDisconnect() async {
   if (BleController.connectedDevice == null &&

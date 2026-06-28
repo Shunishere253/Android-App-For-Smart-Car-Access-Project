@@ -8,21 +8,37 @@ mixin _HomeLifecycle
 
     WidgetsBinding.instance.addObserver(this);
 
+    statusText = AppLocalizations.t("checkingSystem");
+    aesResult = AppLocalizations.t("notAuthenticated");
+
+    // ── Background service setup ──────────────────────────────
     if (backgroundBleServiceEnabled) {
-      // App đang foreground thì background service không được xử lý kết nối xe.
+      // Foreground lên → pause background, đặt flag ownership
       pauseBackgroundBleService();
+      unawaited(StorageService.setForegroundOwnership(true));
     } else {
       unawaited(stopBackgroundServiceIfRunning());
     }
 
+    // ── Load lịch sử từ storage ───────────────────────────────
+    StorageService.loadHistory().then((saved) {
+      if (!mounted || saved.isEmpty) return;
+      setState(() {
+        history.addAll(saved);
+      });
+    });
+
+    // ── UART stream ───────────────────────────────────────────
     uartSub = BleController.uartTextStream.listen((msg) {
       if (!mounted) return;
 
       setState(() {
-        uartLastMessage = msg.trim().isEmpty ? "[DỮ LIỆU BẢO MẬT]" : msg.trim();
+        uartLastMessage =
+            msg.trim().isEmpty ? AppLocalizations.t("secureData") : msg.trim();
       });
     });
 
+    // ── RSSI stream ───────────────────────────────────────────
     rssiSub = BleController.rssiStream.listen((rssi) {
       if (!mounted) return;
 
@@ -30,15 +46,27 @@ mixin _HomeLifecycle
         bleRssi = rssi;
 
         if (isConnected && isWaitingForCarSignal && !isAuthenticating) {
-          statusText =
-              "Đã kết nối, chờ sóng BLE đủ mạnh để xác thực (${rssi ?? '--'} dBm)";
+          statusText = AppLocalizations.t("connectedWaitSignal")
+              .replaceAll("{rssi}", "${rssi ?? '--'}");
           statusColor = Colors.orangeAccent;
         }
       });
 
+      // Kiểm tra mô phỏng rời khỏi xe
+      if (isAccessAuthenticated && rssi != null && rssi <= -75) {
+        debugPrint("Auto-disconnecting due to RSSI ($rssi) <= -75, cooldown 20s");
+        setState(() {
+          isAccessAuthenticated = false;
+          // Đặt cooldown 20 giây — autoReconnect sẽ bỏ qua trong khoảng này
+          rssiAutoDisconnectCooldownUntil = DateTime.now().add(const Duration(seconds: 20));
+        });
+        BleController.disconnect();
+      }
+
       tryRunAutoAuthWhenSignalReady();
     });
 
+    // ── User inside car stream ────────────────────────────────
     userInsideCarNotificationSub = BleController.userInsideCarNotificationStream
         .listen((sent) {
           if (!mounted || !sent) return;
@@ -55,19 +83,30 @@ mixin _HomeLifecycle
                 rssi: BleController.currentRssi,
                 userInsideCarNotified: true,
               );
+
+              // Save cập nhật vào storage
+              unawaited(StorageService.saveHistory(history));
             }
           });
 
+          // Thông báo overlay trong app
           _showUserInsideCarTopNotification();
+
+          // Thông báo hệ thống
+          unawaited(NotificationService.showInsideCar());
         });
 
+    // ── BLE connection stream ─────────────────────────────────
     bleConnectionSub = BleController.connectionStateStream.listen((connected) {
       if (!mounted) return;
 
       if (connected) {
+        // Thông báo hệ thống: đã kết nối
+        unawaited(NotificationService.showConnected());
         return;
       }
 
+      // Disconnected
       setState(() {
         isConnected = false;
         isScanning = false;
@@ -78,10 +117,10 @@ mixin _HomeLifecycle
         authRetryTimer?.cancel();
         authRetryTimer = null;
 
-        statusText = "Đang tìm xe...";
+        statusText = AppLocalizations.t("findingCar");
         statusColor = Colors.orangeAccent;
 
-        aesResult = "Đã ngắt kết nối";
+        aesResult = AppLocalizations.t("disconnected");
         aesResultColor = Colors.redAccent;
 
         plaintextHex = "-";
@@ -92,18 +131,22 @@ mixin _HomeLifecycle
 
       scheduleAutoReconnect();
 
+      // Thông báo hệ thống: đã ngắt kết nối
+      unawaited(NotificationService.showDisconnected());
+
       Future.delayed(const Duration(seconds: 5), () {
         if (!mounted) return;
 
         if (!isConnected && !isScanning && !isAuthenticating) {
           setState(() {
-            statusText = "Mất kết nối với xe";
+            statusText = AppLocalizations.t("lostConnection");
             statusColor = Colors.redAccent;
           });
         }
       });
     });
 
+    // ── Bluetooth adapter state stream ────────────────────────
     btStateSub = FlutterBluePlus.adapterState.listen((state) async {
       if (!mounted) return;
 
@@ -121,10 +164,10 @@ mixin _HomeLifecycle
           authRetryTimer?.cancel();
           authRetryTimer = null;
 
-          statusText = "Bluetooth đã tắt, không thể kết nối với xe";
+          statusText = AppLocalizations.t("bluetoothOffCannotConnect");
           statusColor = Colors.redAccent;
 
-          aesResult = "Đã ngắt kết nối";
+          aesResult = AppLocalizations.t("disconnected");
           aesResultColor = Colors.redAccent;
 
           challengeHex = "-";
@@ -144,7 +187,7 @@ mixin _HomeLifecycle
         isAutoReconnectScheduled = true;
 
         setState(() {
-          statusText = "Bluetooth đã bật, đang kết nối lại với xe...";
+          statusText = AppLocalizations.t("bluetoothOnReconnecting");
           statusColor = Colors.orangeAccent;
         });
 
@@ -248,20 +291,45 @@ mixin _HomeLifecycle
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!backgroundBleServiceEnabled) return;
-
     if (state == AppLifecycleState.resumed) {
-      pauseBackgroundBleService();
-      debugPrint("APP foreground -> pause background BLE");
+      if (backgroundBleServiceEnabled) {
+        // ── App lên foreground (background mode) ─────────────
+        pauseBackgroundBleService();
+        unawaited(StorageService.setForegroundOwnership(true));
+        debugPrint("APP foreground → pause BG, fg_owns_ble=true");
+      }
+
+      // Kiểm tra lại hệ thống nếu chưa ready (từ Settings quay lại)
+      if (!isSystemReady) {
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted) checkSystemOnLaunch();
+        });
+        debugPrint("APP foreground → re-check system (was not ready)");
+        return;
+      }
+
+      // Đã ready nhưng chưa kết nối → reconnect
+      if (!isConnected && !isScanning) {
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted && !isConnected && !isScanning) {
+            connectToCar();
+          }
+        });
+      }
       return;
     }
 
-    // Chỉ resume khi app thật sự xuống nền.
-    // Không dùng inactive vì inactive có thể xảy ra tạm thời khi app vẫn đang mở.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      resumeBackgroundBleService();
-      debugPrint("APP background -> resume background BLE");
+      if (backgroundBleServiceEnabled) {
+        // ── App xuống nền (background mode) ──────────────────
+        stopAutoReconnect();
+        authRetryTimer?.cancel();
+        authRetryTimer = null;
+        unawaited(StorageService.setForegroundOwnership(false));
+        resumeBackgroundBleService();
+        debugPrint("APP background → resume BG, fg_owns_ble=false");
+      }
     }
   }
 }

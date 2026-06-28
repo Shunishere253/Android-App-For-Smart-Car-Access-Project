@@ -39,4 +39,32 @@ class AuthHistoryEntry {
           userInsideCarNotified ?? this.userInsideCarNotified,
     );
   }
+
+  // ── JSON Serialization (để lưu vào SharedPreferences) ──────────
+
+  Map<String, dynamic> toJson() {
+    return {
+      'authenticatedAt': authenticatedAt.millisecondsSinceEpoch,
+      'challengeHex': challengeHex,
+      'plaintextHex': plaintextHex,
+      'cipherHex': cipherHex,
+      'mcuResult': mcuResult,
+      'rssi': rssi,
+      'userInsideCarNotified': userInsideCarNotified,
+    };
+  }
+
+  factory AuthHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return AuthHistoryEntry(
+      authenticatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (json['authenticatedAt'] as num).toInt(),
+      ),
+      challengeHex: json['challengeHex'] as String? ?? '-',
+      plaintextHex: json['plaintextHex'] as String? ?? '-',
+      cipherHex: json['cipherHex'] as String? ?? '-',
+      mcuResult: json['mcuResult'] as String? ?? 'UNKNOWN',
+      rssi: json['rssi'] as int?,
+      userInsideCarNotified: json['userInsideCarNotified'] as bool? ?? false,
+    );
+  }
 }

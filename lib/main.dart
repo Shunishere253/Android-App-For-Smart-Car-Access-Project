@@ -1,10 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'localization/app_localizations.dart';
 import 'screens/home_screen.dart';
+import 'services/notification_service.dart';
+import 'theme_manager.dart';
 
-void main() {
+Future<void> main() async {
+  // Bắt buộc trước khi dùng bất kỳ plugin nào
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Load config đã lưu từ lần trước (theme, màu, ngôn ngữ)
+  // Chạy song song để giảm startup time
+  await Future.wait([
+    ThemeManager.loadFromStorage(),
+    AppLocalizations.loadFromStorage(),
+    NotificationService.initialize(),
+  ]);
+
   runApp(const SmartCarAccessApp());
 }
 

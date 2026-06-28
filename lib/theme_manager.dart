@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'services/storage_service.dart';
+
 enum AppThemeStyle {
   darkBlue,
   light,
@@ -21,6 +23,26 @@ class ThemeManager {
     Colors.purpleAccent,
     Colors.redAccent,
   ];
+
+  // ── Persistent storage ────────────────────────────────────────
+
+  /// Load theme config từ SharedPreferences.
+  /// Gọi trước runApp() trong main().
+  static Future<void> loadFromStorage() async {
+    final (style, color) = await StorageService.loadTheme();
+    themeStyle.value = style;
+    appColor.value = color;
+
+    // Tự động save khi user thay đổi
+    themeStyle.addListener(_onThemeChanged);
+    appColor.addListener(_onThemeChanged);
+  }
+
+  static void _onThemeChanged() {
+    StorageService.saveTheme(themeStyle.value, appColor.value);
+  }
+
+  // ── Theme helpers ─────────────────────────────────────────────
 
   static bool get isLight {
     return themeStyle.value == AppThemeStyle.light ||

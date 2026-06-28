@@ -41,6 +41,9 @@ dependencies:
   permission_handler: ^12.0.1
   device_info_plus: ^13.0.0
 
+  # --- Lưu cấu hình và lịch sử vào bộ nhớ máy ---
+  shared_preferences: ^2.3.2
+
   # --- CÁC THƯ VIỆN BỔ SUNG ĐỂ XỬ LÝ YÊU CẦU ---
   # Dùng để mở thẳng màn hình cài đặt Bluetooth/GPS/Quyền của điện thoại
   app_settings: ^5.2.0 

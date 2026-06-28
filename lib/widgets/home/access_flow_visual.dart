@@ -18,19 +18,66 @@ class AccessFlowVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isInsideCar = BleController.isUserInsideCarRssi(rssi);
+    final isInsideCar = isAccessGranted && BleController.hasSentUserInsideCar;
+
+    String currentTitle;
+    String currentSubtitle;
+    Color currentColor;
+    Widget currentIllustration;
+
+    if (isInsideCar) {
+      currentTitle = AppLocalizations.t("flowInsideCar");
+      currentSubtitle = AppLocalizations.t("flowInsideCarSubtitle");
+      currentColor = Colors.greenAccent;
+      currentIllustration = Stack(
+        alignment: Alignment.center,
+        children: [
+          CarDoorIllustration(
+            isDoorOpen: true,
+            activeColor: currentColor,
+            muted: false,
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _DriverAvatar(active: true, color: currentColor),
+          ),
+        ],
+      );
+    } else if (isAccessGranted) {
+      currentTitle = AppLocalizations.t("flowUnlockedCar");
+      currentSubtitle = AppLocalizations.t("flowUnlockedCarSubtitle");
+      currentColor = primaryColor;
+      currentIllustration = CarDoorIllustration(
+        isDoorOpen: true,
+        activeColor: currentColor,
+        muted: false,
+      );
+    } else {
+      currentTitle = AppLocalizations.t("flowClosedCar");
+      currentSubtitle = AppLocalizations.t("flowClosedCarSubtitle");
+      currentColor = ThemeManager.textSecondary.withValues(alpha: 0.5);
+      currentIllustration = CarDoorIllustration(
+        isDoorOpen: false,
+        activeColor: primaryColor,
+        muted: true,
+      );
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: ThemeManager.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ThemeManager.borderColor),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isInsideCar ? Colors.greenAccent.withValues(alpha: 0.6) : (isAccessGranted ? primaryColor.withValues(alpha: 0.6) : ThemeManager.borderColor),
+          width: isAccessGranted ? 1.5 : 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
+            color: (isInsideCar ? Colors.greenAccent : (isAccessGranted ? primaryColor : Colors.black)).withValues(alpha: isAccessGranted ? 0.2 : 0.1),
+            blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
@@ -39,94 +86,220 @@ class AccessFlowVisual extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.route, color: primaryColor, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  AppLocalizations.t("flowTitle"),
-                  style: TextStyle(
-                    color: ThemeManager.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+              Row(
+                children: [
+                  Icon(Icons.shield_rounded, color: isAccessGranted ? currentColor : ThemeManager.textSecondary.withValues(alpha: 0.5), size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppLocalizations.t("accessStatus"),
+                    style: TextStyle(
+                      color: ThemeManager.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                ),
+                ],
               ),
-              _SignalChip(rssi: rssi, primaryColor: primaryColor),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _FlowStep(
-                  title: AppLocalizations.t("flowClosedCar"),
-                  subtitle: AppLocalizations.t("flowClosedCarSubtitle"),
-                  active: !isAccessGranted,
-                  completed: isAccessGranted,
-                  color: primaryColor,
-                  child: CarDoorIllustration(
-                    isDoorOpen: false,
-                    activeColor: primaryColor,
-                    muted: isAccessGranted,
-                  ),
-                ),
-              ),
-              _FlowConnector(active: isAccessGranted, color: primaryColor),
-              Expanded(
-                child: _FlowStep(
-                  title: AppLocalizations.t("flowUnlockedCar"),
-                  subtitle: AppLocalizations.t("flowUnlockedCarSubtitle"),
-                  active: isAccessGranted && !isInsideCar,
-                  completed: isAccessGranted,
-                  color: primaryColor,
-                  child: CarDoorIllustration(
-                    isDoorOpen: true,
-                    activeColor: primaryColor,
-                    muted: !isAccessGranted,
-                  ),
-                ),
-              ),
-              _FlowConnector(
-                active: isAccessGranted || isInsideCar,
-                color: primaryColor,
-              ),
-              Expanded(
-                child: _FlowStep(
-                  title: AppLocalizations.t("flowInsideCar"),
-                  subtitle: AppLocalizations.t("flowInsideCarSubtitle"),
-                  active: isInsideCar || isAccessGranted,
-                  completed: isInsideCar && isAccessGranted,
-                  color: isInsideCar ? Colors.greenAccent : primaryColor,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CarDoorIllustration(
-                        isDoorOpen: true,
-                        activeColor: isInsideCar
-                            ? Colors.greenAccent
-                            : primaryColor,
-                        muted: !isAccessGranted && !isInsideCar,
-                      ),
-                      Positioned(
-                        right: 4,
-                        bottom: 4,
-                        child: _DriverAvatar(
-                          active: isInsideCar || isAccessGranted,
-                          color: isInsideCar
-                              ? Colors.greenAccent
-                              : primaryColor,
+              Row(
+                children: [
+                  _SignalChip(rssi: rssi, primaryColor: primaryColor),
+                  const SizedBox(width: 6),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => _showFlowDetailsDialog(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: ThemeManager.borderColor.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.info_outline_rounded,
+                          color: ThemeManager.textSecondary,
+                          size: 20,
                         ),
                       ),
-                    ],
+                    ),
                   ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Container(
+                width: 90,
+                height: 70,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: currentColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: currentColor.withValues(alpha: 0.3)),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(width: 76, height: 58, child: currentIllustration),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentTitle,
+                      style: TextStyle(
+                        color: isAccessGranted ? currentColor : ThemeManager.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      currentSubtitle,
+                      style: TextStyle(
+                        color: ThemeManager.textSecondary,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  void _showFlowDetailsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isInsideCar = isAccessGranted && BleController.hasSentUserInsideCar;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: ThemeManager.isLight ? Colors.white : const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      AppLocalizations.t("flowDetails"),
+                      style: TextStyle(
+                        color: ThemeManager.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: ThemeManager.textSecondary),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _FlowStep(
+                        title: AppLocalizations.t("flowClosedCar"),
+                        subtitle: AppLocalizations.t("flowClosedCarSubtitle"),
+                        active: !isAccessGranted,
+                        completed: isAccessGranted,
+                        color: primaryColor,
+                        child: CarDoorIllustration(
+                          isDoorOpen: false,
+                          activeColor: primaryColor,
+                          muted: isAccessGranted,
+                        ),
+                      ),
+                    ),
+                    _FlowConnector(active: isAccessGranted, color: primaryColor),
+                    Expanded(
+                      child: _FlowStep(
+                        title: AppLocalizations.t("flowUnlockedCar"),
+                        subtitle: AppLocalizations.t("flowUnlockedCarSubtitle"),
+                        active: isAccessGranted && !isInsideCar,
+                        completed: isAccessGranted,
+                        color: primaryColor,
+                        child: CarDoorIllustration(
+                          isDoorOpen: true,
+                          activeColor: primaryColor,
+                          muted: !isAccessGranted,
+                        ),
+                      ),
+                    ),
+                    _FlowConnector(
+                      active: isAccessGranted || isInsideCar,
+                      color: primaryColor,
+                    ),
+                    Expanded(
+                      child: _FlowStep(
+                        title: AppLocalizations.t("flowInsideCar"),
+                        subtitle: AppLocalizations.t("flowInsideCarSubtitle"),
+                        active: isInsideCar || isAccessGranted,
+                        completed: isInsideCar && isAccessGranted,
+                        color: isInsideCar ? Colors.greenAccent : primaryColor,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CarDoorIllustration(
+                              isDoorOpen: true,
+                              activeColor: isInsideCar
+                                  ? Colors.greenAccent
+                                  : primaryColor,
+                              muted: !isAccessGranted && !isInsideCar,
+                            ),
+                            Positioned(
+                              right: 4,
+                              bottom: 4,
+                              child: _DriverAvatar(
+                                active: isInsideCar || isAccessGranted,
+                                color: isInsideCar
+                                    ? Colors.greenAccent
+                                    : primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          ),
+        );
+      },
     );
   }
 }

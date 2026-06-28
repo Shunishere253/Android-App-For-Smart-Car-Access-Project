@@ -29,8 +29,8 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
 
     if (!isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Vui lòng kết nối xe trước"),
+        SnackBar(
+          content: Text(AppLocalizations.t("pleaseConnectFirst")),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -54,10 +54,11 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
 
       setState(() {
         isWaitingForCarSignal = true;
-        aesResult = "Chờ RSSI >= ${BleController.authMinimumRssi} dBm";
+        aesResult = AppLocalizations.t("waitingForRssi")
+            .replaceAll("{rssi}", "${BleController.authMinimumRssi}");
         aesResultColor = Colors.orangeAccent;
-        statusText =
-            "Đã kết nối, chờ sóng BLE đủ mạnh để xác thực (${currentRssi ?? '--'} dBm)";
+        statusText = AppLocalizations.t("connectedWaitSignal")
+            .replaceAll("{rssi}", "${currentRssi ?? '--'}");
         statusColor = Colors.orangeAccent;
       });
 
@@ -65,7 +66,9 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "RSSI hiện tại ${currentRssi ?? '--'} dBm, cần >= ${BleController.authMinimumRssi} dBm để xác thực",
+              AppLocalizations.t("rssiTooLowForAuth")
+                  .replaceAll("{current}", "${currentRssi ?? '--'}")
+                  .replaceAll("{min}", "${BleController.authMinimumRssi}"),
             ),
             backgroundColor: Colors.orangeAccent,
           ),
@@ -82,15 +85,15 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
       isAuthenticating = true;
       isWaitingForCarSignal = false;
       aesResult = autoRun
-          ? "Đang xác thực quyền truy cập..."
-          : "Đang xác thực lại quyền truy cập...";
+          ? AppLocalizations.t("authenticatingAccess")
+          : AppLocalizations.t("reAuthenticating");
       aesResultColor = Colors.orangeAccent;
 
       challengeHex = CryptoService.fixedChallengeAsHexString;
-      plaintextHex = "Đang chờ phản hồi từ xe...";
+      plaintextHex = AppLocalizations.t("waitingForCarResponse");
       cipherHex = "-";
 
-      statusText = "Đang xác thực quyền truy cập...";
+      statusText = AppLocalizations.t("authenticatingAccess");
       statusColor = Colors.orangeAccent;
     });
 
@@ -122,29 +125,42 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
         plaintextHex = newPlaintextHex;
         cipherHex = newCipherHex;
 
-        aesResult = result.isPass ? "Truy cập thành công" : "Truy cập thất bại";
+        aesResult = result.isPass ? AppLocalizations.t("authSuccessAes128") : AppLocalizations.t("authFailAes128");
         aesResultColor = result.isPass ? Colors.greenAccent : Colors.redAccent;
         isAuthenticating = false;
         isAccessAuthenticated = result.isPass;
 
         statusText = result.isPass
-            ? "Truy cập xe thành công"
-            : "Xác thực quyền truy cập thất bại";
+            ? AppLocalizations.t("authSuccessFull")
+            : AppLocalizations.t("authFailFull");
         statusColor = result.isPass ? Colors.greenAccent : Colors.redAccent;
       });
 
-      history.insert(
-        0,
-        AuthHistoryEntry(
-          authenticatedAt: DateTime.now(),
-          challengeHex: challengeHex,
-          plaintextHex: plaintextHex,
-          cipherHex: cipherHex,
-          mcuResult: result.mcuResult,
-          rssi: result.rssi,
-          userInsideCarNotified: result.userInsideCarNotified,
-        ),
+      // ── Thêm vào lịch sử ─────────────────────────────────────
+      final newEntry = AuthHistoryEntry(
+        authenticatedAt: DateTime.now(),
+        challengeHex: challengeHex,
+        plaintextHex: plaintextHex,
+        cipherHex: cipherHex,
+        mcuResult: result.mcuResult,
+        rssi: result.rssi,
+        userInsideCarNotified: result.userInsideCarNotified,
       );
+
+      setState(() {
+        history.insert(0, newEntry);
+      });
+
+      // Lưu lịch sử vào storage
+      unawaited(StorageService.saveHistory(history));
+
+      // ── Thông báo hệ thống ────────────────────────────────────
+      if (result.isPass) {
+        unawaited(NotificationService.showAuthSuccess());
+
+        // Đặt cooldown cho background service
+        unawaited(StorageService.setAuthCooldown());
+      }
 
       if (result.isPass) {
         _stopAuthRetry();
@@ -159,29 +175,14 @@ mixin _HomeAuth on State<HomeScreen>, _HomeStateAccess {
     } catch (e) {
       if (!mounted) return;
 
-      if (e is AuthRssiNotReadyException) {
-        setState(() {
-          aesResult = AppLocalizations.t("authRetrying");
-          aesResultColor = Colors.orangeAccent;
-          isAuthenticating = false;
-          isWaitingForCarSignal = true;
-          statusText =
-              "Đã kết nối, chờ sóng BLE đủ mạnh để xác thực (${e.currentRssi ?? '--'} dBm)";
-          statusColor = Colors.orangeAccent;
-        });
-
-        _scheduleAuthRetry();
-        return;
-      }
-
       setState(() {
-        aesResult = "Lỗi: $e";
+        aesResult = AppLocalizations.t("authError").replaceAll("{error}", e.toString());
         aesResultColor = Colors.redAccent;
         isAuthenticating = false;
         isAccessAuthenticated = false;
         isWaitingForCarSignal = false;
 
-        statusText = "Không thể xác thực quyền truy cập";
+        statusText = AppLocalizations.t("authFailed");
         statusColor = Colors.redAccent;
       });
 
